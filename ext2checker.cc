@@ -1,5 +1,5 @@
-#include <cassert>
 #include <iostream>
+#include <cassert>
 #include "ext2checker.h"
 
 auto printSuperBlock(ext2_super_block &sb) -> void {
@@ -145,12 +145,130 @@ auto readBlockGroupDescriptorTable(FILE *fs, ext2_group_desc &bgdt) -> void {
   bgdt.bg_used_dirs_count = *u16Buffer;
 }
 
+auto compareSuperBlock(ext2_super_block sb, ext2_super_block sbCopy) -> void {
+  if (sb.s_inodes_count != sbCopy.s_inodes_count) {
+    printf("Error: s_inodes_count\n");
+  }
+  if (sb.s_blocks_count != sbCopy.s_blocks_count) {
+    printf("Error: s_blocks_count \n");
+  }
+  if (sb.s_r_blocks_count != sbCopy.s_r_blocks_count) {
+    printf("Error: s_r_blocks_count \n");
+  }
+  if (sb.s_free_blocks_count != sbCopy.s_free_blocks_count) {
+    printf("Error: s_free_blocks_count \n");
+  }
+  if (sb.s_free_inodes_count != sbCopy.s_free_inodes_count) {
+    printf("Error: s_free_inodes_count \n");
+  }
+  if (sb.s_first_data_block != sbCopy.s_first_data_block) {
+    printf("Error: s_first_data_block \n");
+  }
+  if (sb.s_log_block_size != sbCopy.s_log_block_size) {
+    printf("Error: s_log_block_size \n");
+  }
+  if (sb.s_log_frag_size != sbCopy.s_log_frag_size) {
+    printf("Error: s_log_frag_size \n");
+  }
+  if (sb.s_blocks_per_group!= sbCopy.s_blocks_per_group) {
+    printf("Error: s_blocks_per_group \n");
+  }
+  if (sb.s_frags_per_group != sbCopy.s_frags_per_group) {
+    printf("Error: s_frags_per_group \n");
+  }
+  if (sb.s_inodes_per_group != sbCopy.s_inodes_per_group) {
+    printf("Error: s_inodes_per_group \n");
+  }
+  if (sb.s_mtime != sbCopy.s_mtime) {
+    printf("Error: s_mtime \n");
+  }
+  if (sb.s_wtime != sbCopy.s_wtime) {
+    printf("Error: s_wtime \n");
+  }
+  if (sb.s_mnt_count != sbCopy.s_mnt_count) {
+    printf("Error: s_mnt_count \n");
+  }
+  if (sb.s_max_mnt_count != sbCopy.s_max_mnt_count) {
+    printf("Error: s_max_mnt_count \n");
+  }
+  if (sb.s_magic != sbCopy.s_magic) {
+    printf("Error: s_magic \n");
+  }
+  if (sb.s_state != sbCopy.s_state) {
+    printf("Error: s_state \n");
+  }
+  if (sb.s_errors != sbCopy.s_errors) {
+    printf("Error: s_errors \n");
+  }
+  if (sb.s_minor_rev_level != sbCopy.s_minor_rev_level) {
+    printf("Error: s_minor_rev_level \n");
+  }
+  if (sb.s_lastcheck != sbCopy.s_lastcheck) {
+    printf("Error: s_lastcheck \n");
+  }
+  if (sb.s_checkinterval != sbCopy.s_checkinterval) {
+    printf("Error: s_checkinterval \n");
+  }
+  if (sb.s_creator_os != sbCopy.s_creator_os) {
+    printf("Error: s_creator_os \n");
+  }
+  if (sb.s_rev_level != sbCopy.s_rev_level) {
+    printf("Error: s_rev_level \n");
+  }
+  if (sb.s_def_resuid != sbCopy.s_def_resuid) {
+    printf("Error: s_def_resuid \n");
+  }
+  if (sb.s_def_resgid != sbCopy.s_def_resgid) {
+    printf("Error: s_def_resgid \n");
+  }
+  if (sb.s_first_ino != sbCopy.s_first_ino) {
+    printf("Error: s_first_ino \n");
+  }
+  if (sb.s_inode_size != sbCopy.s_inode_size) {
+    printf("Error: s_inode_size \n");
+  }
+  if (sb.s_block_group_nr != sbCopy.s_block_group_nr) {
+    printf("Error: s_block_group_nr \n");
+  }
+  if (sb.s_feature_compat != sbCopy.s_feature_compat) {
+    printf("Error: s_feature_compat \n");
+  }
+  if (sb.s_feature_incompat != sbCopy.s_feature_incompat) {
+    printf("Error: s_feature_incompat \n");
+  }
+  if (sb.s_feature_ro_compat != sbCopy.s_feature_ro_compat) {
+    printf("Error: s_feature_ro_compat \n");
+  }
+}
+
+auto isSparseBlockGroup(int groupNumber) -> bool {
+  if (groupNumber % 3 == 0 | groupNumber % 5 == 0 | groupNumber % 7 == 0 |
+      groupNumber == 0 | groupNumber == 1) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+auto checkSuperBlock(FILE *fs, ext2_super_block &sb) -> void {
+  struct ext2_super_block sbCopy;
+  u32 blockSize = 1024 << sb.s_log_block_size;
+  u32 blocksPerGroup = sb.s_blocks_per_group;
+  u32 totalBlockGroups = (sb.s_blocks_count/sb.s_blocks_per_group);
+  for (int i = 0; i < totalBlockGroups; i++) {
+    if (isSparseBlockGroup(i)) {
+      printf("\nBlock group: %i \n", i);
+      fseek(fs, blocksPerGroup * (i * blockSize) + blockSize, SEEK_SET);
+      readSuperBlock(fs, sbCopy);
+      compareSuperBlock(sb, sbCopy);
+    }
+  }
+}
+
 auto main(int argc, char *argv[]) -> int {
   struct ext2_super_block sb;
-
   FILE *fs = fopen(argv[1], "rb");
   assert(fs != NULL);
-  // set the fs position with offset 1024
   fseek(fs, 1024, SEEK_SET);
   readSuperBlock(fs, sb);
   // check if magic number is correct (0xEF53)
@@ -166,29 +284,29 @@ auto main(int argc, char *argv[]) -> int {
   u32 usedSpace = blockSize * (sb.s_blocks_count - sb.s_free_blocks_count);
   printf("Used space: %u bytes.\n", usedSpace);
   printSuperBlock(sb);
-
   // calculate total number of block groups
-  u32 totalGroups = (sb.s_blocks_count/sb.s_blocks_per_group);
+  u32 totalBlockGroups = (sb.s_blocks_count/sb.s_blocks_per_group);
   // initialize block group descriptor table array
-  struct ext2_group_desc bgdt[totalGroups-1];
-  for (int i = 0; i < totalGroups; i++) {
+  struct ext2_group_desc bgdt[totalBlockGroups-1];
+  for (int i = 0; i < totalBlockGroups; i++) {
     fseek(fs, (2048 + (i * 32)), SEEK_SET);
     readBlockGroupDescriptorTable(fs, bgdt[i]);
   }
   // print out block group descriptor table
   printf("Group    Block     Inode      Inode    Free      Free        Used\n"
-       "         Bitmap    Bitmap     Table    Blocks    Inodes      Dirs\n"
-       "-------------------------------------------------------------------\n");
-  for (int j = 0; j < totalGroups; j++) {
-      printf("%5d %9u %9u %9u %9u %9u %9u \n",
-      j,
-      bgdt[j].bg_block_bitmap,
-      bgdt[j].bg_inode_bitmap,
-      bgdt[j].bg_inode_table,
-      bgdt[j].bg_free_blocks_count,
-      bgdt[j].bg_free_inodes_count,
-      bgdt[j].bg_used_dirs_count);
+  "         Bitmap    Bitmap     Table    Blocks    Inodes      Dirs\n"
+  "-------------------------------------------------------------------\n");
+  for (int j = 0; j < totalBlockGroups; j++) {
+    printf("%5d %9u %9u %9u %9u %9u %9u \n",
+    j,
+    bgdt[j].bg_block_bitmap,
+    bgdt[j].bg_inode_bitmap,
+    bgdt[j].bg_inode_table,
+    bgdt[j].bg_free_blocks_count,
+    bgdt[j].bg_free_inodes_count,
+    bgdt[j].bg_used_dirs_count);
   }
   printf("\n");
+  checkSuperBlock(fs, sb);
   return 0;
 }
