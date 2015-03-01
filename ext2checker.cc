@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cassert>
+#include <math.h>
 #include "ext2checker.h"
 
 auto printSuperBlock(ext2_super_block &sb) -> void {
@@ -13,6 +14,7 @@ auto printSuperBlock(ext2_super_block &sb) -> void {
          "Free inodes count:     %15u\n"
          "Block size:            %15u\n"
          "State:                 %15u\n"
+         "Block per group:       %15u\n"
          "Magic number:          %15x\n\n",
          sb.s_inodes_count,
          sb.s_blocks_count,
@@ -21,6 +23,7 @@ auto printSuperBlock(ext2_super_block &sb) -> void {
          sb.s_free_inodes_count,
          block_size,
          sb.s_state,
+         sb.s_blocks_per_group,
          sb.s_magic);
 }
 
@@ -285,17 +288,18 @@ auto main(int argc, char *argv[]) -> int {
   printf("Used space: %u bytes.\n", usedSpace);
   printSuperBlock(sb);
   // calculate total number of block groups
-  u32 totalBlockGroups = (sb.s_blocks_count/sb.s_blocks_per_group);
+  // round up the total # of blocks divided by the # of blocks per block group
+  u32 totalBlockGroups = ceil(sb.s_blocks_count/sb.s_blocks_per_group);
   // initialize block group descriptor table array
-  struct ext2_group_desc bgdt[totalBlockGroups-1];
+  struct ext2_group_desc bgdt[totalBlockGroups];
   for (int i = 0; i < totalBlockGroups; i++) {
     fseek(fs, (2048 + (i * 32)), SEEK_SET);
     readBlockGroupDescriptorTable(fs, bgdt[i]);
   }
   // print out block group descriptor table
   printf("Group    Block     Inode      Inode    Free      Free        Used\n"
-  "         Bitmap    Bitmap     Table    Blocks    Inodes      Dirs\n"
-  "-------------------------------------------------------------------\n");
+         "         Bitmap    Bitmap     Table    Blocks    Inodes      Dirs\n"
+         "-----------------------------------------------------------------\n");
   for (int j = 0; j < totalBlockGroups; j++) {
     printf("%5d %9u %9u %9u %9u %9u %9u \n",
     j,
