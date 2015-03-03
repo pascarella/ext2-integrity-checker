@@ -243,10 +243,10 @@ auto compareSuperBlock(ext2_super_block sb, ext2_super_block sbCopy) -> void {
     printf("Error: s_feature_ro_compat \n");
   }
 }
-
+// backups stored in 0, 1, and powers of 3, 5, and 7
 auto isSparseBlockGroup(int groupNumber) -> bool {
-  if (groupNumber % 3 == 0 | groupNumber % 5 == 0 | groupNumber % 7 == 0 |
-      groupNumber == 0 | groupNumber == 1) {
+  if (groupNumber == 9 | groupNumber == 7 | groupNumber == 5 |
+      groupNumber == 3 | groupNumber == 1 | groupNumber == 0) {
     return true;
   } else {
     return false;
@@ -261,7 +261,7 @@ auto checkSuperBlock(FILE *fs, ext2_super_block &sb) -> void {
   for (int i = 0; i < totalBlockGroups; i++) {
     if (isSparseBlockGroup(i)) {
       printf("\nBlock group: %i \n", i);
-      fseek(fs, blocksPerGroup * (i * blockSize) + blockSize, SEEK_SET);
+      fseek(fs, ((i * blockSize) * blocksPerGroup + blockSize), SEEK_SET);
       readSuperBlock(fs, sbCopy);
       compareSuperBlock(sb, sbCopy);
     }
@@ -293,7 +293,7 @@ auto main(int argc, char *argv[]) -> int {
   // initialize block group descriptor table array
   struct ext2_group_desc bgdt[totalBlockGroups];
   for (int i = 0; i < totalBlockGroups; i++) {
-    fseek(fs, (2048 + (i * 32)), SEEK_SET);
+    fseek(fs, (i * 32) + 2048, SEEK_SET);
     readBlockGroupDescriptorTable(fs, bgdt[i]);
   }
   // print out block group descriptor table
