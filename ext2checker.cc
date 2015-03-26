@@ -266,16 +266,28 @@ auto compareSuperBlock(ext2_super_block sb, ext2_super_block sbCopy) -> void {
   }
 }
 
-auto isSparse(int groupNumber) -> bool {
-  // backups stored in 0, 1, and powers of 3, 5, and 7
-  // TODO: create a function that will check if a number is a power of another
-  //       number.
-  if (groupNumber == 9 | groupNumber == 7 | groupNumber == 5 |
-      groupNumber == 3 | groupNumber == 1 | groupNumber == 0) {
+auto isPower(int groupNumber, int baseNumber) -> bool {
+  double result = log(abs(groupNumber)) / log(abs(baseNumber));
+  double ceilResult = ceil(result);
+  if ((result/ceilResult) == 1) {
     return true;
   } else {
     return false;
   }
+}
+
+auto isSparse(int groupNumber) -> bool {
+  // backups stored in 0, 1, and powers of 3, 5, and 7
+  if (isPower(groupNumber, 7) || isPower(groupNumber, 5) ||
+      isPower(groupNumber, 3) || groupNumber == 1 || groupNumber == 0) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+auto checkBlockGroupDescriptorTable(FILE *fs, ext2_group_desc &bgdt) -> void {
+
 }
 
 auto checkSuperBlock(FILE *fs, ext2_super_block &sb) -> void {
@@ -315,6 +327,10 @@ auto main(int argc, char *argv[]) -> int {
   // calculate total number of block groups
   // round up the total # of blocks divided by the # of blocks per block group
   u32 totalBlockGroups = ceil(sb.s_blocks_count/sb.s_blocks_per_group);
+  //u32 totalBlockGroups = sb.s_blocks_count/sb.s_blocks_per_group;
+  //if (sb.s_blocks_count > 8192) {
+  //  totalBlockGroups++;
+  //}
   printBlockGroupDescriptorTable(fs, totalBlockGroups);
   checkSuperBlock(fs, sb);
 }
