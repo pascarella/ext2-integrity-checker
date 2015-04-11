@@ -1,116 +1,17 @@
+#include <unistd.h>
+#include <fcntl.h>
 #include <iostream>
 #include <cassert>
 #include <math.h>
 #include "ext2checker.h"
 
-auto readSuperBlock(FILE *fs, ext2_super_block &sb) -> void {
-  u32 *u32Buffer = new u32;
-  u16 *u16Buffer = new u16;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_inodes_count = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_blocks_count = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_r_blocks_count = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_free_blocks_count = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_free_inodes_count = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_first_data_block = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_log_block_size = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_log_frag_size = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_blocks_per_group = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_frags_per_group = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_inodes_per_group = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_mtime = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_wtime = *u32Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  sb.s_mnt_count = *u16Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  sb.s_max_mnt_count = *u16Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  sb.s_magic = *u16Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  sb.s_state = *u16Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  sb.s_errors = *u16Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  sb.s_minor_rev_level = *u16Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_lastcheck = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_checkinterval = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_creator_os = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_rev_level = *u32Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  sb.s_def_resuid = *u16Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  sb.s_def_resgid = *u16Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_first_ino = *u32Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  sb.s_inode_size = *u16Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  sb.s_block_group_nr = *u16Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_feature_compat = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_feature_incompat = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  sb.s_feature_ro_compat = *u32Buffer;
-}
-
-auto printSuperBlock(ext2_super_block &sb) -> void {
-  u32 block_size;
-  block_size = 1024 << sb.s_log_block_size;
+void printSuperBlock(SuperBlock &sb) {
   printf("\nSuperblock from block group %i\n", sb.s_block_group_nr);
   printf("Inodes count:          %15u\n"
          "Blocks count:          %15u\n"
          "Reserved blocks count: %15u\n"
          "Free blocks count:     %15u\n"
          "Free inodes count:     %15u\n"
-         "Block size:            %15u\n"
          "State:                 %15u\n"
          "Block per group:       %15u\n"
          "Magic number:          %15x\n\n",
@@ -119,58 +20,29 @@ auto printSuperBlock(ext2_super_block &sb) -> void {
          sb.s_r_blocks_count,
          sb.s_free_blocks_count,
          sb.s_free_inodes_count,
-         block_size,
          sb.s_state,
          sb.s_blocks_per_group,
          sb.s_magic);
 }
 
-auto readBlockGroupDescriptorTable(FILE *fs, ext2_group_desc &bgdt) -> void {
-  u32 *u32Buffer = new u32;
-  u16 *u16Buffer = new u16;
-
-  fread(u32Buffer, 4, 1, fs);
-  bgdt.bg_block_bitmap = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  bgdt.bg_inode_bitmap = *u32Buffer;
-
-  fread(u32Buffer, 4, 1, fs);
-  bgdt.bg_inode_table = *u32Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  bgdt.bg_free_blocks_count = *u16Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  bgdt.bg_free_inodes_count = *u16Buffer;
-
-  fread(u16Buffer, 2, 1, fs);
-  bgdt.bg_used_dirs_count = *u16Buffer;
-}
-
-auto printBlockGroupDescriptorTable(FILE *fs, u32 totalBlockGroups) -> void {
-  struct ext2_group_desc bgdt[totalBlockGroups];
-  for (int i = 0; i < totalBlockGroups; i++) {
-    fseek(fs, (i * 32) + 2048, SEEK_SET);
-    readBlockGroupDescriptorTable(fs, bgdt[i]);
-  }
+void printBGDT(BlockGroup *bg, u32 totalBlockGroups) {
   printf("Group    Block     Inode      Inode    Free      Free        Used\n"
          "         Bitmap    Bitmap     Table    Blocks    Inodes      Dirs\n"
          "-----------------------------------------------------------------\n");
   for (int j = 0; j < totalBlockGroups; j++) {
     printf("%5d %9u %9u %9u %9u %9u %9u \n",
     j,
-    bgdt[j].bg_block_bitmap,
-    bgdt[j].bg_inode_bitmap,
-    bgdt[j].bg_inode_table,
-    bgdt[j].bg_free_blocks_count,
-    bgdt[j].bg_free_inodes_count,
-    bgdt[j].bg_used_dirs_count);
+    bg[j].bg_block_bitmap,
+    bg[j].bg_inode_bitmap,
+    bg[j].bg_inode_table,
+    bg[j].bg_free_blocks_count,
+    bg[j].bg_free_inodes_count,
+    bg[j].bg_used_dirs_count);
   }
   printf("\n");
 }
 
-auto compareSuperBlock(ext2_super_block sb, ext2_super_block sbCopy) -> void {
+void compareSuperBlocks(SuperBlock sb, SuperBlock sbCopy) {
   if (sb.s_inodes_count != sbCopy.s_inodes_count) {
     printf("Error: s_inodes_count\n");
   }
@@ -266,17 +138,38 @@ auto compareSuperBlock(ext2_super_block sb, ext2_super_block sbCopy) -> void {
   }
 }
 
-auto isPower(int groupNumber, int baseNumber) -> bool {
-  double result = log(abs(groupNumber)) / log(abs(baseNumber));
-  double ceilResult = ceil(result);
-  if ((result/ceilResult) == 1) {
-    return true;
-  } else {
-    return false;
+void compareBlockGroups(BlockGroup &bg, BlockGroup &bgCopy) {
+  if(bg.bg_block_bitmap != bgCopy.bg_block_bitmap) {
+    printf("Error: bg_block_bitmap \n");
+  }
+  if(bg.bg_inode_bitmap != bgCopy.bg_inode_bitmap) {
+    printf("Error: bg_inode_bitmap \n");
+  }
+  if(bg.bg_inode_table != bgCopy.bg_inode_table) {
+    printf("Error: bg_inode_table \n");
+  }
+  if(bg.bg_free_blocks_count != bgCopy.bg_free_blocks_count) {
+    printf("Error: bg_free_blocks_count \n");
+  }
+  if(bg.bg_free_inodes_count != bgCopy.bg_free_inodes_count) {
+    printf("Error: bg_free_inodes_count \n");
+  }
+  if(bg.bg_used_dirs_count != bgCopy.bg_used_dirs_count) {
+    printf("Error: bg_used_dirs_count \n");
   }
 }
 
-auto isSparse(int groupNumber) -> bool {
+bool isPower(u32 x, u32 y) {
+  while(x > 1) {
+    if (x % y != 0) {
+      return false;
+    }
+    x /= y;
+  }
+  return true;
+}
+
+bool isSparse(int groupNumber) {
   // backups stored in 0, 1, and powers of 3, 5, and 7
   if (isPower(groupNumber, 7) || isPower(groupNumber, 5) ||
       isPower(groupNumber, 3) || groupNumber == 1 || groupNumber == 0) {
@@ -284,37 +177,101 @@ auto isSparse(int groupNumber) -> bool {
   } else {
     return false;
   }
-}
+ }
 
-auto checkBlockGroupDescriptorTable(FILE *fs, ext2_group_desc &bgdt) -> void {
-
-}
-
-auto checkSuperBlock(FILE *fs, ext2_super_block &sb) -> void {
-  struct ext2_super_block sbCopy;
-  u32 blockSize = 1024 << sb.s_log_block_size;
-  u32 blocksPerGroup = sb.s_blocks_per_group;
-  u32 totalBlockGroups = (sb.s_blocks_count/sb.s_blocks_per_group);
+void checkSuperBlockCopies(int fs, SuperBlock sb, u32 totalBlockGroups,
+                           u32 blockSize) {
+  struct SuperBlock sbCopy;
+  printf("Testing Superblock copies...");
   for (int i = 0; i < totalBlockGroups; i++) {
     if (isSparse(i)) {
-      printf("\nBlock group: %i \n", i);
-      fseek(fs, ((i * blockSize) * blocksPerGroup + blockSize), SEEK_SET);
-      readSuperBlock(fs, sbCopy);
-      compareSuperBlock(sb, sbCopy);
+      printf("\nBlock group: %i\n", i);
+      lseek(fs, i * blockSize * sb.s_blocks_per_group + blockSize, SEEK_SET);
+      read(fs, &sbCopy, sizeof(sbCopy));
+      compareSuperBlocks(sb, sbCopy);
     }
   }
 }
 
-auto main(int argc, char *argv[]) -> int {
-  struct ext2_super_block sb;
-  FILE *fs = fopen(argv[1], "rb");
-  assert(fs != NULL);
-  fseek(fs, 1024, SEEK_SET);
-  readSuperBlock(fs, sb);
-  // check if magic number is correct (0xEF53)
-  assert(sb.s_magic == 61267);
-  // calculate filesystem size
+void checkBlockGroupTableCopies(int fs, SuperBlock sb, BlockGroup *bg) {
   u32 blockSize = 1024 << sb.s_log_block_size;
+  u32 blocksPerGroup = sb.s_blocks_per_group;
+  u32 totalBlockGroups = ceil(sb.s_blocks_count/sb.s_blocks_per_group);
+
+  struct BlockGroup *bgCopy;
+  bgCopy = (BlockGroup*) malloc(totalBlockGroups * sizeof(BlockGroup));
+  printf("\nTesting Group Descriptor copies...");
+  for (int i = 0; i < totalBlockGroups; i++) {
+    if (isSparse(i)) {
+      printf("\nBlock group: %i \n", i);
+      if (blockSize == 1024) {
+        lseek(fs, i * blockSize * sb.s_blocks_per_group + 2048, SEEK_SET);
+      } else {
+        lseek(fs, i * blockSize * sb.s_blocks_per_group + blockSize, SEEK_SET);
+      }
+      for (int j = 0; j < totalBlockGroups; j++) {
+        read(fs, &bgCopy[j], sizeof(BlockGroup));
+        compareBlockGroups(bgCopy[j], bgCopy[j]);
+      }
+    }
+  }
+}
+
+void printRootInode(struct Inode *inode) {
+  printf("\nReading root inode (2)\n"
+         "Owner UID:  %5hu\n"
+         "Size:       %5u bytes\n"
+         "1/2K Blocks:%5u\n"
+         "Ref count:  %5u\n",
+         inode->i_uid,
+         inode->i_size,
+         inode->i_blocks,
+         inode->i_links_count);
+
+  for (int i = 0; i < EXT2_N_BLOCKS; i++) {
+    // direct blocks (entries 1-12)
+    if (i < EXT2_NDIR_BLOCKS) {
+      printf("Block %2u:   %5u\n", i, inode->i_block[i]);
+    }
+    // single indirect (13th entry)
+    else if (i == EXT2_IND_BLOCK) {
+      printf("Single:     %5u\n", inode->i_block[i]);
+    }
+    // double indirect (14th entry)
+    else if (i == EXT2_DIND_BLOCK) {
+      printf("Double:     %5u\n", inode->i_block[i]);
+    }
+    // triple indirect (15th entry)
+    else if (i == EXT2_TIND_BLOCK) {
+      printf("Triple:     %5u\n\n", inode->i_block[i]);
+    }
+  }
+}
+
+void readRootInode(int fs, int inodeNo, SuperBlock *sb, BlockGroup *bg,
+                   Inode *inode, u32 blockSize) {
+  int inodeGroup = (inodeNo-1)/sb->s_inodes_per_group;
+  int fInode = (1024 + ((bg[inodeGroup].bg_inode_table)-1) * blockSize);
+  lseek(fs, fInode + (inodeNo-1) * sizeof(Inode), SEEK_SET);
+  read(fs, inode, sizeof(Inode));
+}
+
+int main(int argc, char *argv[]) {
+  struct SuperBlock sb;
+  struct BlockGroup *bg;
+  struct Inode inode;
+
+  int fs = open(argv[1], O_RDONLY);
+  if (fs < 0) {
+    return 1;
+  }
+
+  lseek(fs, 1024, SEEK_SET);
+  read(fs, &sb, sizeof(sb));
+
+  assert(sb.s_magic == 61267);
+  u32 blockSize = 1024 << sb.s_log_block_size;
+
   u32 fsSize = sb.s_blocks_count * blockSize;
   printf("\nTotal size of filesystem:    %u bytes\n", fsSize);
   // calculate free space
@@ -323,14 +280,28 @@ auto main(int argc, char *argv[]) -> int {
   // calculate used space
   u32 usedSpace = blockSize * (sb.s_blocks_count - sb.s_free_blocks_count);
   printf("Used space:                   %u bytes\n", usedSpace);
-  printSuperBlock(sb);
-  // calculate total number of block groups
-  // round up the total # of blocks divided by the # of blocks per block group
+
   u32 totalBlockGroups = ceil(sb.s_blocks_count/sb.s_blocks_per_group);
-  //u32 totalBlockGroups = sb.s_blocks_count/sb.s_blocks_per_group;
-  //if (sb.s_blocks_count > 8192) {
-  //  totalBlockGroups++;
-  //}
-  printBlockGroupDescriptorTable(fs, totalBlockGroups);
-  checkSuperBlock(fs, sb);
+  bg = (BlockGroup *) malloc(totalBlockGroups * sizeof(BlockGroup));
+
+  if (blockSize == 1024) {
+    lseek(fs, 1024 + blockSize, SEEK_SET);
+  } else {
+    lseek(fs, blockSize, SEEK_SET);
+  }
+  for (int i = 0; i < totalBlockGroups; i++) {
+    read(fs, &bg[i], sizeof(BlockGroup));
+  }
+
+  printSuperBlock(sb);
+  printBGDT(bg, totalBlockGroups);
+  checkSuperBlockCopies(fs, sb, totalBlockGroups, blockSize);
+  checkBlockGroupTableCopies(fs, sb, bg);
+  readRootInode(fs, 2, &sb, bg, &inode, blockSize);
+  printRootInode(&inode);
+
+  close(fs);
+  return 0;
 }
+
+
