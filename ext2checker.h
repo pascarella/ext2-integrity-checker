@@ -11,7 +11,7 @@ typedef unsigned int u32;
 typedef int s32;
 typedef unsigned short u16;
 typedef short s16;
-typedef uint8_t u8;
+typedef unsigned char u8;
 
 /*
  * Structure of the super block
