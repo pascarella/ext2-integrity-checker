@@ -1,3 +1,10 @@
+#include <cstdio>
+#include <cstdlib>
+#include <cmath>
+#include <cassert>
+#include <unistd.h>
+#include <fcntl.h>
+
 /*
  * Constants relative to the data blocks
  */
