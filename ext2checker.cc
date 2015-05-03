@@ -4,7 +4,11 @@
 #include <cassert>
 #include <unistd.h>
 #include <fcntl.h>
+#include <string.h>
+#include <sys/stat.h>
 #include "ext2checker.h"
+
+u16 blockSize;
 
 void printSuperBlock(SuperBlock &sb) {
   printf("\nSuperblock from block group %i\n", sb.s_block_group_nr);
@@ -43,7 +47,7 @@ void printBGDT(BlockGroup *bg, u32 totalBlockGroups) {
   printf("\n");
 }
 
-void compareSuperBlocks(SuperBlock sb, SuperBlock sbCopy) {
+void compareSuperBlock(SuperBlock sb, SuperBlock sbCopy) {
   if (sb.s_inodes_count != sbCopy.s_inodes_count) {
     printf("Error: s_inodes_count\n");
     sbCopy.s_inodes_count = sb.s_inodes_count;
@@ -164,35 +168,35 @@ void compareSuperBlocks(SuperBlock sb, SuperBlock sbCopy) {
   }
 }
 
-void compareBlockGroupTables(BlockGroup &bg, BlockGroup &bgCopy) {
+void compareBlockGroupTable(BlockGroup &bg, BlockGroup &bgCopy) {
   if (bg.bg_block_bitmap != bgCopy.bg_block_bitmap) {
     printf("Error: bg_block_bitmap \n");
-    bgCopy.bg_block_bitmap = bg.bg_block_bitmap;
+    //bgCopy.bg_block_bitmap = bg.bg_block_bitmap;
   }
   if (bg.bg_inode_bitmap != bgCopy.bg_inode_bitmap) {
     printf("Error: bg_inode_bitmap \n");
-    bgCopy.bg_inode_bitmap = bg.bg_inode_bitmap;
+    //bgCopy.bg_inode_bitmap = bg.bg_inode_bitmap;
   }
   if (bg.bg_inode_table != bgCopy.bg_inode_table) {
     printf("Error: bg_inode_table \n");
-    bgCopy.bg_inode_table = bg.bg_inode_table;
+    //bgCopy.bg_inode_table = bg.bg_inode_table;
   }
   if (bg.bg_free_blocks_count != bgCopy.bg_free_blocks_count) {
     printf("Error: bg_free_blocks_count \n");
-    bgCopy.bg_free_blocks_count = bg.bg_free_blocks_count;
+    //bgCopy.bg_free_blocks_count = bg.bg_free_blocks_count;
   }
   if (bg.bg_free_inodes_count != bgCopy.bg_free_inodes_count) {
     printf("Error: bg_free_inodes_count \n");
-    bgCopy.bg_free_inodes_count = bg.bg_free_inodes_count;
+    //bgCopy.bg_free_inodes_count = bg.bg_free_inodes_count;
   }
   if (bg.bg_used_dirs_count != bgCopy.bg_used_dirs_count) {
     printf("Error: bg_used_dirs_count \n");
-    bgCopy.bg_used_dirs_count = bg.bg_used_dirs_count;
+    //bgCopy.bg_used_dirs_count = bg.bg_used_dirs_count;
   }
 }
 
-bool isPower(u32 x, u32 y) {
-  while(x > 1) {
+bool isPower(u16 x, u16 y) {
+  while (x > 1) {
     if (x % y != 0) {
       return false;
     }
@@ -212,7 +216,8 @@ bool isSparse(int groupNumber) {
  }
 
 void checkSuperBlockCopies(int fs, SuperBlock sb, u32 totalBlockGroups) {
-  struct SuperBlock sbCopy;
+  SuperBlock sbCopy;
+  u32 blocksPerGroup = sb.s_blocks_per_group;
   u32 blockSize = 1024 << sb.s_log_block_size;
   printf("----------------------------");
   printf("\nTesting Superblock copies...\n");
@@ -220,9 +225,9 @@ void checkSuperBlockCopies(int fs, SuperBlock sb, u32 totalBlockGroups) {
   for (int i = 0; i < totalBlockGroups; i++) {
     if (isSparse(i)) {
       printf("\nBlock group: %i\n", i);
-      lseek(fs, i * blockSize * sb.s_blocks_per_group + 1024, SEEK_SET);
+      lseek(fs, i * blockSize * blocksPerGroup + 1024, SEEK_SET);
       read(fs, &sbCopy, sizeof(sbCopy));
-      compareSuperBlocks(sb, sbCopy);
+      compareSuperBlock(sb, sbCopy);
     }
   }
 }
@@ -232,7 +237,7 @@ void checkBlockGroupTableCopies(int fs, SuperBlock sb, BlockGroup *bg) {
   u32 blocksPerGroup = sb.s_blocks_per_group;
   u32 totalBlockGroups = ceil(sb.s_blocks_count / sb.s_blocks_per_group);
 
-  struct BlockGroup *bgCopy;
+  BlockGroup *bgCopy;
   bgCopy = (BlockGroup*) malloc(totalBlockGroups * sizeof(BlockGroup));
   printf("\n----------------------------------");
   printf("\nTesting Block Group copies...\n");
@@ -241,13 +246,13 @@ void checkBlockGroupTableCopies(int fs, SuperBlock sb, BlockGroup *bg) {
     if (isSparse(i)) {
       printf("\nBlock group: %i\n", i);
       if (blockSize == 1024) {
-        lseek(fs, i * (32 * blockSize) * sb.s_blocks_per_group + 2048, SEEK_SET);
+        lseek(fs, (i * 32) * blockSize * blocksPerGroup + 2048, SEEK_SET);
       } else {
-        lseek(fs, i * (32 * blockSize) * sb.s_blocks_per_group + blockSize, SEEK_SET);
+        lseek(fs, (i * 32) * blockSize * blocksPerGroup + blockSize, SEEK_SET);
       }
       for (int j = 0; j < totalBlockGroups; j++) {
         read(fs, &bgCopy[j], sizeof(BlockGroup));
-        compareBlockGroupTables(bg[j], bgCopy[j]);
+        compareBlockGroupTable(bg[j], bgCopy[j]);
       }
     }
   }
@@ -284,6 +289,35 @@ void printInode(Inode *inode) {
   }
 }
 
+//
+// Note: couldn't get this to work, but I feel I'm on the right track
+//
+void readDirectory(int fs, SuperBlock sb, BlockGroup *bg, Inode *inode) {
+  char *block[blockSize];
+  DirEntry2 *de;
+  u16 cursor;
+
+  lseek(fs, blockSize * (inode->i_block[0]), SEEK_SET);
+  read(fs, block, blockSize);
+  printf("Directory contents: \n");
+  // print out directory
+  de = (DirEntry2 *) block;  // first entry
+  while (cursor < inode->i_size) {
+    if (de->inode > 0) {
+      // print out information on this entry
+      char fileName[EXT2_NAME_LEN + 1];
+      memcpy(fileName, de->name, de->name_len);
+      fileName[de->name_len] = '\0'; // append null to the file name
+      printf("Inode: %6d %20s\n", de->inode, fileName);
+    }
+    // move on to next entry in this directory
+    de += de->rec_len;
+    cursor += de->rec_len;
+  }
+ // free(block);
+}
+
+
 int main(int argc, char *argv[]) {
   SuperBlock sb;
   BlockGroup *bg;
@@ -296,7 +330,7 @@ int main(int argc, char *argv[]) {
   read(fs, &sb, sizeof(sb));
   // check if magic number is correct (0xEF53)
   assert(sb.s_magic == 0xef53);
-  u32 blockSize = 1024 << sb.s_log_block_size;
+  u16 blockSize = 1024 << sb.s_log_block_size;
   // calculate filesystem size
   u32 fsSize = sb.s_blocks_count * blockSize;
   printf("\nTotal size of filesystem:    %u bytes\n", fsSize);
@@ -319,27 +353,25 @@ int main(int argc, char *argv[]) {
     read(fs, &bg[i], sizeof(BlockGroup));
   }
   // read root inode (2)
-  u32 inodeNumber = 2;
+  u16 inodeNumber = 2;
+  // inode addresses start at 1
+  // determine which group the inode is in
   u32 blockGroup = (inodeNumber - 1) / sb.s_inodes_per_group;
-  u32 fInode = (1024 + ((bg[blockGroup].bg_inode_table) - 1) * blockSize);
-  lseek(fs, fInode + (inodeNumber - 1) * sizeof(Inode), SEEK_SET);
+  // index of our inode
+  u32 inodeIndex = (inodeNumber - 1) % sb.s_inodes_per_group;
+  // determine which block contains our inode
+  u32 containingBlock = (inodeIndex * sizeof(Inode)) / blockSize;
+  lseek(fs, blockSize + 1024 * ((bg[blockGroup].bg_inode_table) - 1)
+        + inodeIndex * sizeof(Inode), SEEK_SET);
   read(fs, &inode, sizeof(Inode));
 
-  // calculate number of inodes per block
-  u32 inodesPerBlock = blockSize / sizeof(Inode);
-  printf("inodesPerBlock: %u\n", inodesPerBlock);
-  // calculate size in blocks of the inode table
-  u32 itableBlocks = sb.s_inodes_per_group / inodesPerBlock;
-  printf("itableBlocks: %u\n", itableBlocks);
-  u32 inodeSize = sizeof(Inode);
   printSuperBlock(sb);
   printBGDT(bg, totalBlockGroups);
   checkSuperBlockCopies(fs, sb, totalBlockGroups);
   checkBlockGroupTableCopies(fs, sb, bg);
   printInode(&inode);
 
+  //readDirectory(fs, sb, bg, &inode);
   close(fs);
   return 0;
 }
-
-
