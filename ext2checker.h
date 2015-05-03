@@ -19,6 +19,7 @@ typedef int s32;
 typedef unsigned short u16;
 typedef short s16;
 typedef unsigned char u8;
+u16 blockSize;
 
 /*
  * Structure of the super block

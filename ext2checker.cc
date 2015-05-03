@@ -8,8 +8,6 @@
 #include <sys/stat.h>
 #include "ext2checker.h"
 
-u16 blockSize;
-
 void printSuperBlock(SuperBlock &sb) {
   printf("\nSuperblock from block group %i\n", sb.s_block_group_nr);
   printf("Inodes count:          %15u\n"
