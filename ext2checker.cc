@@ -45,6 +45,10 @@ void printBGDT(BlockGroup *bg, u32 totalBlockGroups) {
   printf("\n");
 }
 
+//
+// compares the original master superblock with the copies
+// attempts to correct if the copies have been corrupted
+//
 void compareSuperBlock(SuperBlock sb, SuperBlock sbCopy) {
   if (sb.s_inodes_count != sbCopy.s_inodes_count) {
     printf("Error: s_inodes_count\n");
@@ -166,33 +170,40 @@ void compareSuperBlock(SuperBlock sb, SuperBlock sbCopy) {
   }
 }
 
+//
+// compares the original block group table with the copies
+// attempts to correct if the copies have been corrupted
+//
 void compareBlockGroupTable(BlockGroup &bg, BlockGroup &bgCopy) {
   if (bg.bg_block_bitmap != bgCopy.bg_block_bitmap) {
     printf("Error: bg_block_bitmap \n");
-    //bgCopy.bg_block_bitmap = bg.bg_block_bitmap;
+    bgCopy.bg_block_bitmap = bg.bg_block_bitmap;
   }
   if (bg.bg_inode_bitmap != bgCopy.bg_inode_bitmap) {
     printf("Error: bg_inode_bitmap \n");
-    //bgCopy.bg_inode_bitmap = bg.bg_inode_bitmap;
+    bgCopy.bg_inode_bitmap = bg.bg_inode_bitmap;
   }
   if (bg.bg_inode_table != bgCopy.bg_inode_table) {
     printf("Error: bg_inode_table \n");
-    //bgCopy.bg_inode_table = bg.bg_inode_table;
+    bgCopy.bg_inode_table = bg.bg_inode_table;
   }
   if (bg.bg_free_blocks_count != bgCopy.bg_free_blocks_count) {
     printf("Error: bg_free_blocks_count \n");
-    //bgCopy.bg_free_blocks_count = bg.bg_free_blocks_count;
+    bgCopy.bg_free_blocks_count = bg.bg_free_blocks_count;
   }
   if (bg.bg_free_inodes_count != bgCopy.bg_free_inodes_count) {
     printf("Error: bg_free_inodes_count \n");
-    //bgCopy.bg_free_inodes_count = bg.bg_free_inodes_count;
+    bgCopy.bg_free_inodes_count = bg.bg_free_inodes_count;
   }
   if (bg.bg_used_dirs_count != bgCopy.bg_used_dirs_count) {
     printf("Error: bg_used_dirs_count \n");
-    //bgCopy.bg_used_dirs_count = bg.bg_used_dirs_count;
+    bgCopy.bg_used_dirs_count = bg.bg_used_dirs_count;
   }
 }
 
+//
+// takes a group number and determines if it is a power of another number
+//
 bool isPower(u16 x, u16 y) {
   while (x > 1) {
     if (x % y != 0) {
@@ -298,11 +309,12 @@ void readDirectory(int fs, SuperBlock sb, BlockGroup *bg, Inode *inode) {
   lseek(fs, blockSize * (inode->i_block[0]), SEEK_SET);
   read(fs, block, blockSize);
   printf("Directory contents: \n");
+  printf("----------------------------------");
   // print out directory
   de = (DirEntry2 *) block;  // first entry
   while (cursor < inode->i_size) {
     if (de->inode > 0) {
-      // print out information on this entry
+      // print out info on this entry
       char fileName[EXT2_NAME_LEN + 1];
       memcpy(fileName, de->name, de->name_len);
       fileName[de->name_len] = '\0'; // append null to the file name
